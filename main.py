@@ -1,6 +1,8 @@
-import os
+import logging
 import subprocess
 import time
+
+logging.basicConfig(level=logging.INFO)
 
 def run_command_no_console(command, **kwargs):
     startupinfo = subprocess.STARTUPINFO()
@@ -18,21 +20,39 @@ def is_wsl_running(timeout=5):
             time.sleep(1)
         return False
     except subprocess.TimeoutExpired:
-        print(f"Timeout of {timeout} seconds reached.")
+        logging.warning(f"Timeout of {timeout} seconds reached.")
         return False
 
-def restart_wsl():
-    run_command_no_console(['wsl.exe', '--terminate'])
-    run_command_no_console(['wsl.exe'])
-    print("WSL restarted.")
+def restart_wsl(retries=3):
+    for attempt in range(retries):
+        logging.info(f"Attempt {attempt + 1} to terminate WSL...")
+        terminate_result = run_command_no_console(['wsl.exe', '--terminate'], capture_output=True, text=True)
+        
+        if terminate_result.returncode != 0:
+            logging.error(f"Error terminating WSL: {terminate_result.stderr}")
+            time.sleep(2)
+            continue
+
+        logging.info("WSL terminated. Starting WSL...")
+        start_result = run_command_no_console(['wsl.exe'], capture_output=True, text=True)
+
+        if start_result.returncode != 0:
+            logging.error(f"Error starting WSL: {start_result.stderr}")
+            time.sleep(2)
+            continue
+
+        logging.info("WSL restarted successfully.")
+        return
+
+    logging.error("Failed to restart WSL after multiple attempts.")
 
 def main():
     timeout = 10  # Adjust this value as needed
     if not is_wsl_running(timeout):
-        print("WSL not running. Restarting...")
+        logging.warning("WSL not running. Restarting...")
         restart_wsl()
     else:
-        print("WSL is running.")
+        logging.info("WSL is running.")
 
 if __name__ == "__main__":
     main()
